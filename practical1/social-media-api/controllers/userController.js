@@ -6,21 +6,19 @@ const { users } = require('../utils/mockData');
 // @route   GET /api/users
 // @access  Public
 exports.getUsers = asyncHandler(async (req, res, next) => {
-  let results = [...users];
-
+  // Pagination
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-
-  const pagination = {};
-
   const total = users.length;
 
   // Get paginated results
-  results = results.slice(startIndex, endIndex);
+  const results = users.slice(startIndex, endIndex);
 
-  // Pagination info
+  // Pagination result
+  const pagination = {};
+
   if (endIndex < total) {
     pagination.next = {
       page: page + 1,
@@ -38,10 +36,9 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     count: results.length,
-    pagination,
-    total_pages: Math.ceil(total / limit),
     page,
-    limit,
+    total_pages: Math.ceil(total / limit),
+    pagination,
     data: results
   });
 });
@@ -50,7 +47,7 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 // @route   GET /api/users/:id
 // @access  Public
 exports.getUser = asyncHandler(async (req, res, next) => {
-  const user = users.find(user => user.id === parseInt(req.params.id));
+  const user = users.find(user => user.id === req.params.id);
 
   if (!user) {
     return next(
@@ -69,20 +66,19 @@ exports.getUser = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.createUser = asyncHandler(async (req, res, next) => {
   const newUser = {
-    id: users.length + 1,
+    id: (users.length + 1).toString(),
     username: req.body.username,
     email: req.body.email,
     full_name: req.body.full_name,
     profile_picture: req.body.profile_picture || 'default-profile.jpg',
-    bio: req.body.bio || ''
+    bio: req.body.bio || '',
+    created_at: new Date().toISOString().slice(0, 10)
   };
 
   // Check if username already exists
   const existingUser = users.find(user => user.username === newUser.username);
   if (existingUser) {
-    return next(
-      new ErrorResponse('Username already exists', 400)
-    );
+    return next(new ErrorResponse('Username already exists', 400));
   }
 
   users.push(newUser);
@@ -97,7 +93,7 @@ exports.createUser = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/users/:id
 // @access  Private (we'll simulate this)
 exports.updateUser = asyncHandler(async (req, res, next) => {
-  let user = users.find(user => user.id === parseInt(req.params.id));
+  let user = users.find(user => user.id === req.params.id);
 
   if (!user) {
     return next(
@@ -106,7 +102,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
   }
 
   // Update user
-  const index = users.findIndex(user => user.id === parseInt(req.params.id));
+  const index = users.findIndex(user => user.id === req.params.id);
 
   users[index] = {
     ...user,
@@ -124,7 +120,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/users/:id
 // @access  Private (we'll simulate this)
 exports.deleteUser = asyncHandler(async (req, res, next) => {
-  const user = users.find(user => user.id === parseInt(req.params.id));
+  const user = users.find(user => user.id === req.params.id);
 
   if (!user) {
     return next(
@@ -133,7 +129,7 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
   }
 
   // Delete user
-  const index = users.findIndex(user => user.id === parseInt(req.params.id));
+  const index = users.findIndex(user => user.id === req.params.id);
   users.splice(index, 1);
 
   res.status(200).json({

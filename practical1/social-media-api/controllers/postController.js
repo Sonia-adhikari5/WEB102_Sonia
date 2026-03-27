@@ -6,24 +6,19 @@ const { posts, users } = require('../utils/mockData');
 // @route   GET /api/posts
 // @access  Public
 exports.getPosts = asyncHandler(async (req, res, next) => {
-  let results = [...posts];
-
+  // Pagination
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-
-  const pagination = {};
-
   const total = posts.length;
 
   // Get paginated results
-  results = results.slice(startIndex, endIndex);
+  const results = posts.slice(startIndex, endIndex);
 
   // Enhance posts with user data
   const enhancedResults = results.map(post => {
     const user = users.find(user => user.id === post.user_id);
-
     return {
       ...post,
       user: {
@@ -35,7 +30,9 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
     };
   });
 
-  // Pagination info
+  // Pagination result
+  const pagination = {};
+
   if (endIndex < total) {
     pagination.next = {
       page: page + 1,
@@ -53,9 +50,8 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     count: enhancedResults.length,
-    total_pages: Math.ceil(total / limit),
     page,
-    limit,
+    total_pages: Math.ceil(total / limit),
     pagination,
     data: enhancedResults
   });
@@ -65,7 +61,7 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
 // @route   GET /api/posts/:id
 // @access  Public
 exports.getPost = asyncHandler(async (req, res, next) => {
-  const post = posts.find(post => post.id === parseInt(req.params.id));
+  const post = posts.find(post => post.id === req.params.id);
 
   if (!post) {
     return next(
@@ -75,7 +71,6 @@ exports.getPost = asyncHandler(async (req, res, next) => {
 
   // Enhance post with user data
   const user = users.find(user => user.id === post.user_id);
-
   const enhancedPost = {
     ...post,
     user: {
@@ -98,26 +93,20 @@ exports.getPost = asyncHandler(async (req, res, next) => {
 exports.createPost = asyncHandler(async (req, res, next) => {
   // Simulate authentication
   const userId = req.header('X-User-Id');
-
   if (!userId) {
-    return next(
-      new ErrorResponse('Not authorized to access this route', 401)
-    );
+    return next(new ErrorResponse('Not authorized to access this route', 401));
   }
 
-  const user = users.find(user => user.id === parseInt(userId));
-
+  const user = users.find(user => user.id === userId);
   if (!user) {
-    return next(
-      new ErrorResponse('User not found', 404)
-    );
+    return next(new ErrorResponse('User not found', 404));
   }
 
   const newPost = {
-    id: posts.length + 1,
+    id: (posts.length + 1).toString(),
     caption: req.body.caption,
-    image_url: req.body.image_url,
-    user_id: user.id,
+    image: req.body.image,
+    user_id: userId,
     created_at: new Date().toISOString().slice(0, 10)
   };
 
@@ -135,14 +124,11 @@ exports.createPost = asyncHandler(async (req, res, next) => {
 exports.updatePost = asyncHandler(async (req, res, next) => {
   // Simulate authentication
   const userId = req.header('X-User-Id');
-
   if (!userId) {
-    return next(
-      new ErrorResponse('Not authorized to access this route', 401)
-    );
+    return next(new ErrorResponse('Not authorized to access this route', 401));
   }
 
-  let post = posts.find(post => post.id === parseInt(req.params.id));
+  let post = posts.find(post => post.id === req.params.id);
 
   if (!post) {
     return next(
@@ -151,17 +137,17 @@ exports.updatePost = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user owns the post
-  if (post.user_id !== parseInt(userId)) {
-    return next(
-      new ErrorResponse('Not authorized to update this post', 401)
-    );
+  if (post.user_id !== userId) {
+    return next(new ErrorResponse(`Not authorized to update this post`, 401));
   }
 
-  const index = posts.findIndex(post => post.id === parseInt(req.params.id));
+  // Update post
+  const index = posts.findIndex(post => post.id === req.params.id);
 
   posts[index] = {
     ...post,
     ...req.body,
+    id: post.id, // Ensure ID doesn't change
     user_id: post.user_id // Ensure user_id doesn't change
   };
 
@@ -177,14 +163,11 @@ exports.updatePost = asyncHandler(async (req, res, next) => {
 exports.deletePost = asyncHandler(async (req, res, next) => {
   // Simulate authentication
   const userId = req.header('X-User-Id');
-
   if (!userId) {
-    return next(
-      new ErrorResponse('Not authorized to access this route', 401)
-    );
+    return next(new ErrorResponse('Not authorized to access this route', 401));
   }
 
-  const post = posts.find(post => post.id === parseInt(req.params.id));
+  const post = posts.find(post => post.id === req.params.id);
 
   if (!post) {
     return next(
@@ -193,13 +176,12 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user owns the post
-  if (post.user_id !== parseInt(userId)) {
-    return next(
-      new ErrorResponse('Not authorized to delete this post', 401)
-    );
+  if (post.user_id !== userId) {
+    return next(new ErrorResponse(`Not authorized to delete this post`, 401));
   }
 
-  const index = posts.findIndex(post => post.id === parseInt(req.params.id));
+  // Delete post
+  const index = posts.findIndex(post => post.id === req.params.id);
   posts.splice(index, 1);
 
   res.status(200).json({
