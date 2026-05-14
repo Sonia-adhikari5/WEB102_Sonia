@@ -8,7 +8,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
+const storage = multer.memoryStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/');
   },
@@ -30,8 +30,16 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({
   storage,
-  fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'video') {
+      cb(null, file.mimetype.startsWith('video/'));
+    } else if (file.fieldname === 'thumbnail') {
+      cb(null, file.mimetype.startsWith('image/'));
+    } else {
+      cb(null, false);
+    }
+  }
 });
 
 module.exports = upload;

@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { uploadFile, deleteFile } = require('../services/storageService');
 
 // @desc    Get all videos
 // @route   GET /api/videos
@@ -64,34 +65,55 @@ exports.getVideo = async (req, res) => {
 // @route   POST /api/videos
 exports.createVideo = async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { caption, audioName } = req.body;
+    const userId = req.user.id;
 
-    if (!req.files || !req.files['video']) {
+    if (!req.files || !req.files.video) {
       return res.status(400).json({ message: 'Video file is required' });
     }
 
-    const videoFile = req.files['video'][0];
-    const thumbnailFile = req.files['thumbnail'] ? req.files['thumbnail'][0] : null;
+    // Upload video to Supabase
+    const videoFile = req.files.video[0];
+    const videoPath = `${Date.now()}_${videoFile.originalname}`;
+    const videoResult = await uploadFile(
+      'videos',
+      videoPath,
+      videoFile.buffer,
+      videoFile.mimetype
+    );
 
-    const url = `http://localhost:5000/uploads/${videoFile.filename}`;
-    const thumbnail = thumbnailFile 
-      ? `http://localhost:5000/uploads/${thumbnailFile.filename}` 
-      : null;
+    // Upload thumbnail if provided
+    let thumbnailResult = null;
+    if (req.files.thumbnail) {
+      const thumbFile = req.files.thumbnail[0];
+      const thumbPath = `${Date.now()}_${thumbFile.originalname}`;
+      thumbnailResult = await uploadFile(
+        'thumbnails',
+        thumbPath,
+        thumbFile.buffer,
+        thumbFile.mimetype
+      );
+    }
 
+    
+    
     const video = await prisma.video.create({
       data: {
-        title: title || 'Untitled',
-        description,
-        url,
-        thumbnail,
-        userId: req.user.id
-      }
+        userId,
+        caption,
+        audioName,
+        videoUrl: videoResult.url,
+        videoStoragePath: videoResult.path,
+        thumbnailUrl: thumbnailResult?.url || null,
+        thumbnailStoragePath: thumbnailResult?.path || null,
+      },
+      include: { user: { select: { id: true, username: true, avatar: true } } }
     });
 
     res.status(201).json(video);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Create video error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -117,12 +139,30 @@ exports.updateVideo = async (req, res) => {
 // @route   DELETE /api/videos/:id
 exports.deleteVideo = async (req, res) => {
   try {
-    await prisma.video.delete({
+    const video = await prisma.video.findUnique({
       where: { id: parseInt(req.params.id) }
     });
-    res.json({ message: 'Video deleted' });
+
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+
+    if (video.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Delete files from Supabase storage
+    if (video.videoStoragePath) {
+      await deleteFile('videos', video.videoStoragePath);
+    }
+    if (video.thumbnailStoragePath) {
+      await deleteFile('thumbnails', video.thumbnailStoragePath);
+    }
+
+    await prisma.video.delete({ where: { id: parseInt(req.params.id) } });
+
+    res.status(204).end();
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Delete video error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
